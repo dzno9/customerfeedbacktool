@@ -1,0 +1,297 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum FeedbackSource {
+  intercom
+  upload
+}
+
+enum ProcessingStatus {
+  pending
+  processing
+  completed
+  failed
+}
+
+enum SummaryStatus {
+  pending
+  processing
+  completed
+  failed
+}
+
+enum SignalStatus {
+  pending
+  processing
+  completed
+  failed
+}
+
+enum SignalSentiment {
+  positive
+  neutral
+  negative
+  unclassified
+}
+
+enum SignalSeverity {
+  low
+  medium
+  high
+  critical
+  unclassified
+}
+
+enum CandidateOpportunityStatus {
+  candidate
+  none
+}
+
+enum OpportunityStatus {
+  suggested
+  approved
+  rejected
+}
+
+enum ReviewActionType {
+  approve
+  reject
+  merge
+  split
+  relabel
+}
+
+enum SyncJobType {
+  intercom_backfill
+  intercom_incremental_sync
+}
+
+enum SyncJobStatus {
+  running
+  succeeded
+  failed
+}
+
+model FeedbackItem {
+  id                String           @id @default(cuid())
+  source            FeedbackSource
+  externalId        String?
+  occurredAt        DateTime
+  rawText           String
+  summary           String?
+  summaryStatus     SummaryStatus    @default(pending)
+  summaryError      String?
+  signalStatus      SignalStatus     @default(pending)
+  signalError       String?
+  customerName      String?
+  customerEmail     String?
+  accountId         String?
+  sentiment         String?
+  severity          String?
+  metadataJson      Json?
+  sourceUrl         String?
+  processingStatus  ProcessingStatus @default(pending)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  deletedAt         DateTime?
+  opportunityItems  OpportunityItem[]
+  feedbackSignal    FeedbackSignal?
+  candidateOpportunity CandidateOpportunity?
+
+  @@index([source])
+  @@index([externalId])
+  @@index([occurredAt])
+  @@unique([source, externalId])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  action     String
+  entityType String
+  entityId   String
+  actorId    String
+  metadataJson Json?
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId, createdAt])
+  @@index([actorId, createdAt])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model FeedbackSignal {
+  id               String          @id @default(cuid())
+  feedbackItemId   String          @unique
+  tags             String[]        @default([])
+  tagsUnclassified Boolean         @default(false)
+  sentiment        SignalSentiment
+  severity         SignalSeverity
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  feedbackItem     FeedbackItem    @relation(fields: [feedbackItemId], references: [id], onDelete: Cascade)
+
+  @@index([sentiment])
+  @@index([severity])
+  @@map("feedback_signals")
+}
+
+model CandidateOpportunity {
+  id              String                     @id @default(cuid())
+  feedbackItemId  String                     @unique
+  status          CandidateOpportunityStatus
+  opportunityText String?
+  createdAt       DateTime                   @default(now())
+  updatedAt       DateTime                   @updatedAt
+  feedbackItem    FeedbackItem               @relation(fields: [feedbackItemId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@map("candidate_opportunities")
+}
+
+model UploadBatch {
+  id          String        @id @default(cuid())
+  filename    String
+  status      String
+  totalRows   Int           @default(0)
+  successRows Int           @default(0)
+  failedRows  Int           @default(0)
+  uploadedBy  String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  files       UploadFile[]
+  errors      UploadError[]
+}
+
+model UploadFile {
+  id           String      @id @default(cuid())
+  batchId      String
+  filename     String
+  mimeType     String?
+  sizeBytes    Int
+  status       String
+  totalRows    Int         @default(0)
+  successRows  Int         @default(0)
+  failedRows   Int         @default(0)
+  errorMessage String?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  batch        UploadBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  @@index([batchId])
+}
+
+model UploadError {
+  id           String      @id @default(cuid())
+  batchId      String
+  rowRef       String?
+  errorCode    String
+  errorMessage String
+  createdAt    DateTime    @default(now())
+  batch        UploadBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  @@index([batchId])
+}
+
+model Opportunity {
+  id                String            @id @default(cuid())
+  title             String
+  description       String?
+  status            OpportunityStatus @default(suggested)
+  scoreTotal        Float             @default(0)
+  scoreFrequency    Float             @default(0)
+  scoreRecency      Float             @default(0)
+  scoreSeverity     Float             @default(0)
+  scoreSegment      Float             @default(0)
+  evidenceCount     Int               @default(0)
+  lastEvidenceAt    DateTime?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  opportunityItems  OpportunityItem[]
+  reviewActions     ReviewAction[]
+}
+
+model OpportunityItem {
+  opportunityId    String
+  feedbackItemId   String
+  similarityScore  Float?
+  createdAt        DateTime     @default(now())
+  opportunity      Opportunity  @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  feedbackItem     FeedbackItem @relation(fields: [feedbackItemId], references: [id], onDelete: Cascade)
+
+  @@id([opportunityId, feedbackItemId])
+  @@index([feedbackItemId])
+}
+
+model ReviewAction {
+  id            String           @id @default(cuid())
+  opportunityId String
+  action        ReviewActionType
+  payloadJson   Json?
+  actorId       String
+  createdAt     DateTime         @default(now())
+  opportunity   Opportunity      @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+
+  @@index([opportunityId])
+  @@index([actorId])
+}
+
+model ScoringConfig {
+  id               String   @id @default(cuid())
+  frequencyWeight  Float    @default(1)
+  recencyWeight    Float    @default(1)
+  severityWeight   Float    @default(1)
+  segmentWeight    Float    @default(1)
+  updatedBy        String?
+  updatedAt        DateTime @updatedAt
+}
+
+model WeeklyBrief {
+  id          String   @id @default(cuid())
+  startDate   DateTime
+  endDate     DateTime
+  generatedAt DateTime @default(now())
+  snapshotJson Json
+  generatedBy String?
+
+  @@map("weekly_briefs")
+}
+
+model IntegrationConnection {
+  id                   String   @id @default(cuid())
+  provider             String
+  status               String
+  encryptedCredentials String
+  lastCheckedAt        DateTime?
+  lastSyncAt           DateTime?
+  lastError            String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@unique([provider])
+}
+
+model SyncJob {
+  id               String        @id @default(cuid())
+  provider         String
+  jobType          SyncJobType
+  status           SyncJobStatus
+  fromDate         DateTime?
+  toDate           DateTime?
+  cursor           String?
+  recordsProcessed Int           @default(0)
+  apiAttempts      Int           @default(0)
+  error            String?
+  startedAt        DateTime      @default(now())
+  completedAt      DateTime?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  @@index([provider, jobType])
+  @@index([status, startedAt])
+}
