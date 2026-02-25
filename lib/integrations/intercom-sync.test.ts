@@ -396,6 +396,48 @@ describe("intercom sync", () => {
     expect(jobs.at(-1)?.status).toBe("failed");
   });
 
+  it("skips malformed conversations and continues processing valid records", async () => {
+    const db = createFakeDb();
+    await seedConnectedIntercom(db);
+
+    const result = await runIntercomBackfillSync(
+      {
+        from: new Date("2026-02-20T00:00:00.000Z"),
+        to: new Date("2026-02-20T23:59:59.999Z")
+      },
+      {
+        db,
+        intercomClient: {
+          async fetchConversationsPage() {
+            return {
+              conversations: [
+                {
+                  id: "conv_bad",
+                  created_at: "2026-02-20T09:00:00.000Z",
+                  source: {
+                    body: ""
+                  }
+                },
+                {
+                  id: "conv_good",
+                  created_at: "2026-02-20T10:00:00.000Z",
+                  source: {
+                    body: "Need SSO provisioning audit logs"
+                  }
+                }
+              ],
+              nextCursor: null
+            };
+          }
+        }
+      }
+    );
+
+    expect(result.ok).toBe(true);
+    expect(await db.feedbackItem.count()).toBe(1);
+    expect(db.__state.getFeedbackItems()[0]?.externalId).toBe("conv_good");
+  });
+
   it("incremental sync does not drop old conversations that were recently updated", async () => {
     const db = createFakeDb();
     await seedConnectedIntercom(db);

@@ -356,10 +356,27 @@ async function runIntercomSync(
       );
 
       for (const conversation of page.conversations) {
-        const canonical = toCanonicalFeedbackItem(
-          "intercom",
-          toIntercomCanonicalPayload(conversation)
-        );
+        let canonical;
+        try {
+          canonical = toCanonicalFeedbackItem(
+            "intercom",
+            toIntercomCanonicalPayload(conversation)
+          );
+        } catch (error) {
+          // Intercom payloads can include conversation variants with no usable text/body.
+          // Skip malformed records so one bad item does not fail the entire sync run.
+          if (error instanceof Error) {
+            const message = error.message.toLowerCase();
+            if (
+              message.includes("unable to map feedback item") ||
+              message.includes("missing raw text") ||
+              message.includes("missing or invalid occurredat")
+            ) {
+              continue;
+            }
+          }
+          throw error;
+        }
 
         if (!canonical.externalId) {
           continue;
