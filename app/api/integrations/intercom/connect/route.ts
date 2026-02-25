@@ -25,19 +25,8 @@ export async function POST(request: Request) {
       );
     }
 
-    return NextResponse.json(
-      {
-        message: "Intercom connected successfully.",
-        status: result.status
-      },
-      { status: 200 }
-    );
+    return NextResponse.json(result, { status: 200 });
   } catch {
-    return NextResponse.json(
-      {
-        error: "Unexpected error while connecting Intercom."
-      },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Unexpected error while connecting Intercom." }, { status: 500 });
   }
 }

@@ -14,10 +14,5 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     return NextResponse.json({ error: "Opportunity not found." }, { status: 404 });
   }
 
-  return NextResponse.json(
-    {
-      opportunity
-    },
-    { status: 200 }
-  );
+  return NextResponse.json({ opportunity }, { status: 200 });
 }

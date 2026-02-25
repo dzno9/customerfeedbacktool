@@ -7,9 +7,7 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const opportunityId = searchParams.get("opportunityId")?.trim() || undefined;
     const limitRaw = Number(searchParams.get("limit") ?? "30");
-    const take = Number.isFinite(limitRaw)
-      ? Math.max(1, Math.min(100, Math.floor(limitRaw)))
-      : 30;
+    const take = Number.isFinite(limitRaw) ? Math.max(1, Math.min(100, Math.floor(limitRaw))) : 30;
 
     const actions = await db.reviewAction.findMany({
       where: opportunityId ? { opportunityId } : undefined,
@@ -35,4 +33,3 @@ export async function GET(request: Request) {
     );
   }
 }
-

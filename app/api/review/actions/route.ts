@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 
 import { db } from "@/lib/db";
-import { InvalidReviewActionPayloadError, parseReviewActionPayload } from "@/lib/opportunities/review-actions-config";
+import {
+  InvalidReviewActionPayloadError,
+  parseReviewActionPayload
+} from "@/lib/opportunities/review-actions-config";
 import { applyReviewAction, ReviewActionError } from "@/lib/opportunities/review-queue";
 import { recomputeOpportunityScores } from "@/lib/opportunities/scoring";
 

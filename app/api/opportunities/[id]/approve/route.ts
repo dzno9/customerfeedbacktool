@@ -1,24 +1,28 @@
 import { NextResponse } from "next/server";
 
-import { approveOpportunity, OpportunityApprovalError } from "@/lib/opportunities/approve-opportunity";
 import { db } from "@/lib/db";
+import { approveOpportunity, OpportunityApprovalError } from "@/lib/opportunities/approve-opportunity";
+import { recomputeOpportunityScores } from "@/lib/opportunities/scoring";
+
+type ApprovePayload = {
+  actorId?: unknown;
+};
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
-  const params = await context.params;
-
-  let actorId = "system";
+  let payload: ApprovePayload = {};
 
   try {
-    const payload = (await request.json()) as { actorId?: string };
-    if (typeof payload.actorId === "string" && payload.actorId.trim()) {
-      actorId = payload.actorId.trim();
-    }
+    payload = (await request.json()) as ApprovePayload;
   } catch {
-    // Keep default actor for empty/invalid JSON bodies.
+    payload = {};
   }
+
+  const actorId = typeof payload.actorId === "string" && payload.actorId.trim() ? payload.actorId.trim() : "pm";
+  const params = await context.params;
 
   try {
     const opportunity = await approveOpportunity(params.id, actorId, db);
+    await recomputeOpportunityScores(db);
     return NextResponse.json({ opportunity }, { status: 200 });
   } catch (error) {
     if (error instanceof OpportunityApprovalError) {
@@ -26,7 +30,9 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         return NextResponse.json({ error: error.message }, { status: 404 });
       }
 
-      return NextResponse.json({ error: error.message }, { status: 409 });
+      if (error.code === "ZERO_EVIDENCE") {
+        return NextResponse.json({ error: error.message }, { status: 409 });
+      }
     }
 
     return NextResponse.json({ error: "Unexpected error while approving opportunity." }, { status: 500 });

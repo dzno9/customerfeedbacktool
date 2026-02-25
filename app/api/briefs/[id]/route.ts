@@ -1,16 +1,16 @@
 import { NextResponse } from "next/server";
 
-import { getWeeklyBriefById, WeeklyBriefError } from "@/lib/briefs/weekly-brief";
 import { db } from "@/lib/db";
+import { getWeeklyBriefById, WeeklyBriefError } from "@/lib/briefs/weekly-brief";
 
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
-  const params = await context.params;
+  const { id } = await context.params;
 
   try {
-    const brief = await getWeeklyBriefById(db, params.id);
+    const brief = await getWeeklyBriefById(db, id);
 
     if (!brief) {
-      return NextResponse.json({ error: "Brief not found." }, { status: 404 });
+      return NextResponse.json({ error: "Weekly brief not found." }, { status: 404 });
     }
 
     return NextResponse.json({ brief }, { status: 200 });

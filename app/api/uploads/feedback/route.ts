@@ -6,30 +6,23 @@ import { enqueueFeedbackSummaryJob } from "@/lib/feedback/summary-queue";
 import { ingestFeedbackUpload } from "@/lib/uploads/feedback-upload";
 
 export async function POST(request: Request) {
-  let formData: FormData;
-
   try {
-    formData = await request.formData();
-  } catch {
-    return NextResponse.json({ error: "Invalid multipart form data." }, { status: 400 });
-  }
-
-  const files = [
-    ...formData
+    const formData = await request.formData();
+    const files = formData
       .getAll("files")
-      .filter((entry): entry is File => typeof File !== "undefined" && entry instanceof File),
-    ...formData
-      .getAll("file")
-      .filter((entry): entry is File => typeof File !== "undefined" && entry instanceof File)
-  ];
+      .filter((value): value is File => value instanceof File);
 
-  const uploadedBy = formData.get("uploadedBy");
+    const uploadedByRaw = formData.get("uploadedBy");
+    const uploadedBy = typeof uploadedByRaw === "string" && uploadedByRaw.trim() ? uploadedByRaw.trim() : undefined;
 
-  try {
+    if (files.length === 0) {
+      return NextResponse.json({ error: "At least one file is required." }, { status: 400 });
+    }
+
     const result = await ingestFeedbackUpload(
       {
         files,
-        uploadedBy: typeof uploadedBy === "string" && uploadedBy.trim() ? uploadedBy.trim() : undefined
+        uploadedBy
       },
       {
         db,
@@ -38,28 +31,13 @@ export async function POST(request: Request) {
       }
     );
 
-    return NextResponse.json(
-      {
-        message: "Upload ingestion completed.",
-        batch: result
-      },
-      { status: 201 }
-    );
+    return NextResponse.json(result, { status: 201 });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unexpected upload ingestion error.";
-    const status =
-      message.includes("required") ||
-      message.includes("Unsupported") ||
-      message.includes("upload limit") ||
-      message.includes("exceeds limit")
-        ? 400
-        : 500;
-
     return NextResponse.json(
       {
-        error: message
+        error: error instanceof Error ? error.message : "Unexpected error while processing upload."
       },
-      { status }
+      { status: 400 }
     );
   }
 }

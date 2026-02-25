@@ -6,15 +6,15 @@ import { getUploadBatchStatus } from "@/lib/uploads/feedback-upload";
 export async function GET(_request: Request, context: { params: Promise<{ batchId: string }> }) {
   const params = await context.params;
 
-  const batch = await getUploadBatchStatus(params.batchId, db);
-  if (!batch) {
-    return NextResponse.json({ error: "Upload batch not found." }, { status: 404 });
-  }
+  try {
+    const batch = await getUploadBatchStatus(params.batchId, db);
 
-  return NextResponse.json(
-    {
-      batch
-    },
-    { status: 200 }
-  );
+    if (!batch) {
+      return NextResponse.json({ error: "Upload batch not found." }, { status: 404 });
+    }
+
+    return NextResponse.json({ batch }, { status: 200 });
+  } catch {
+    return NextResponse.json({ error: "Unexpected error while loading upload batch." }, { status: 500 });
+  }
 }
