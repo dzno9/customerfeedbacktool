@@ -547,6 +547,8 @@ export async function runIntercomBackfillSync(
   input: {
     from: Date;
     to: Date;
+    maxRecords?: number;
+    maxPages?: number;
   },
   deps: SyncDeps
 ) {
