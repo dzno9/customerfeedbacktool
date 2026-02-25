@@ -5,6 +5,8 @@ import {
 } from "./extract-feedback-signals";
 
 export async function enqueueFeedbackSignalsJob(feedbackItemId: string) {
+  const safeJobId = `${EXTRACT_FEEDBACK_SIGNALS_JOB_NAME}__${feedbackItemId}`;
+
   await getSignalsQueue().add(
     EXTRACT_FEEDBACK_SIGNALS_JOB_NAME,
     {
@@ -18,7 +20,7 @@ export async function enqueueFeedbackSignalsJob(feedbackItemId: string) {
       },
       removeOnComplete: 100,
       removeOnFail: 100,
-      jobId: `${EXTRACT_FEEDBACK_SIGNALS_JOB_NAME}:${feedbackItemId}`
+      jobId: safeJobId
     }
   );
 }

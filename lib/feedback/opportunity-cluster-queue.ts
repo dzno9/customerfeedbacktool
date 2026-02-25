@@ -5,6 +5,8 @@ import {
 } from "./cluster-feedback-items";
 
 export async function enqueueOpportunityClusterJob(feedbackItemId: string) {
+  const safeJobId = `${CLUSTER_FEEDBACK_ITEMS_JOB_NAME}__${feedbackItemId}`;
+
   await getSignalsQueue().add(
     CLUSTER_FEEDBACK_ITEMS_JOB_NAME,
     {
@@ -18,7 +20,7 @@ export async function enqueueOpportunityClusterJob(feedbackItemId: string) {
       },
       removeOnComplete: 100,
       removeOnFail: 100,
-      jobId: `${CLUSTER_FEEDBACK_ITEMS_JOB_NAME}:${feedbackItemId}`
+      jobId: safeJobId
     }
   );
 }

@@ -5,6 +5,8 @@ import {
 } from "./summarize-feedback-item";
 
 export async function enqueueFeedbackSummaryJob(feedbackItemId: string) {
+  const safeJobId = `${SUMMARIZE_FEEDBACK_ITEM_JOB_NAME}__${feedbackItemId}`;
+
   await getSummaryQueue().add(
     SUMMARIZE_FEEDBACK_ITEM_JOB_NAME,
     {
@@ -18,7 +20,7 @@ export async function enqueueFeedbackSummaryJob(feedbackItemId: string) {
       },
       removeOnComplete: 100,
       removeOnFail: 100,
-      jobId: `${SUMMARIZE_FEEDBACK_ITEM_JOB_NAME}:${feedbackItemId}`
+      jobId: safeJobId
     }
   );
 }
