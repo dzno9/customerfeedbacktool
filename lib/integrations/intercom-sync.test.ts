@@ -486,4 +486,42 @@ describe("intercom sync", () => {
     expect(params.get("starting_after")).toBe("abc");
     expect(params.get("per_page")).toBe("50");
   });
+
+  it("honors maxRecords limit for backfill runs", async () => {
+    const db = createFakeDb();
+    await seedConnectedIntercom(db);
+
+    const result = await runIntercomBackfillSync(
+      {
+        from: new Date("2026-02-18T00:00:00.000Z"),
+        to: new Date("2026-02-18T23:59:59.000Z"),
+        maxRecords: 1
+      },
+      {
+        db,
+        intercomClient: {
+          async fetchConversationsPage() {
+            return {
+              conversations: [
+                {
+                  id: "conv_1",
+                  created_at: "2026-02-18T09:00:00.000Z",
+                  source: { body: "Need reporting export." }
+                },
+                {
+                  id: "conv_2",
+                  created_at: "2026-02-18T09:10:00.000Z",
+                  source: { body: "Need role permissions." }
+                }
+              ],
+              nextCursor: null
+            };
+          }
+        }
+      }
+    );
+
+    expect(result.ok).toBe(true);
+    expect(await db.feedbackItem.count()).toBe(1);
+  });
 });

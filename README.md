@@ -77,6 +77,18 @@ npx prisma migrate deploy
 - Worker 3 start command: `npm run worker:intercom-sync`
 8. Copy the same env vars to each worker service.
 
+### Backfill safety limits (recommended)
+To prevent large Intercom workspaces from creating massive queues/cost spikes, set:
+- `INTERCOM_BACKFILL_MAX_RECORDS` (default `500`)
+- `INTERCOM_BACKFILL_MAX_PAGES` (default `20`)
+
+You can also override per request on backfill API:
+```bash
+curl -X POST "$APP_URL/api/sync/intercom/backfill" \
+  -H "Content-Type: application/json" \
+  -d '{"from":"2026-02-01T00:00:00.000Z","to":"2026-02-07T23:59:59.999Z","maxRecords":200,"maxPages":10}'
+```
+
 ## Intercom integration
 Current MVP exposes API endpoints for connection and sync:
 - `POST /api/integrations/intercom/connect`

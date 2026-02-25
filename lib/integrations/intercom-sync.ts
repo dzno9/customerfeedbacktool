@@ -8,11 +8,15 @@ const DEFAULT_PAGE_SIZE = 50;
 const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
 const DEFAULT_MAX_API_ATTEMPTS = 3;
 const DEFAULT_INCREMENTAL_LOOKBACK_MS = 15 * 60 * 1000;
+const DEFAULT_BACKFILL_MAX_RECORDS = 500;
+const DEFAULT_BACKFILL_MAX_PAGES = 20;
 
 const backfillInputSchema = z
   .object({
     from: z.coerce.date(),
-    to: z.coerce.date()
+    to: z.coerce.date(),
+    maxRecords: z.coerce.number().int().positive().max(10_000).optional(),
+    maxPages: z.coerce.number().int().positive().max(200).optional()
   })
   .refine((value) => value.from <= value.to, {
     message: "`from` must be less than or equal to `to`.",
@@ -289,6 +293,8 @@ async function runIntercomSync(
   input: {
     from?: Date;
     to?: Date;
+    maxRecords?: number;
+    maxPages?: number;
   },
   deps: SyncDeps
 ): Promise<{ ok: true; job: SyncJobRecord } | { ok: false; error: string; job: SyncJobRecord }> {
@@ -335,10 +341,31 @@ async function runIntercomSync(
     const pageSize = deps.pageSize ?? DEFAULT_PAGE_SIZE;
     const timeoutMs = deps.timeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
     const maxApiAttempts = deps.maxApiAttempts ?? DEFAULT_MAX_API_ATTEMPTS;
+    const configuredBackfillMaxRecords = Number(process.env.INTERCOM_BACKFILL_MAX_RECORDS ?? "");
+    const configuredBackfillMaxPages = Number(process.env.INTERCOM_BACKFILL_MAX_PAGES ?? "");
+    const maxRecords =
+      mode === "intercom_backfill"
+        ? input.maxRecords ??
+          (Number.isFinite(configuredBackfillMaxRecords) && configuredBackfillMaxRecords > 0
+            ? Math.floor(configuredBackfillMaxRecords)
+            : DEFAULT_BACKFILL_MAX_RECORDS)
+        : Number.POSITIVE_INFINITY;
+    const maxPages =
+      mode === "intercom_backfill"
+        ? input.maxPages ??
+          (Number.isFinite(configuredBackfillMaxPages) && configuredBackfillMaxPages > 0
+            ? Math.floor(configuredBackfillMaxPages)
+            : DEFAULT_BACKFILL_MAX_PAGES)
+        : Number.POSITIVE_INFINITY;
 
     let cursor: string | undefined;
+    let pagesFetched = 0;
 
     while (true) {
+      if (pagesFetched >= maxPages || recordsProcessed >= maxRecords) {
+        break;
+      }
+
       const page = await withRetries(
         async () =>
           intercomClient.fetchConversationsPage({
@@ -354,8 +381,16 @@ async function runIntercomSync(
           apiAttempts += 1;
         }
       );
+      pagesFetched += 1;
+
+      let shouldStop = false;
 
       for (const conversation of page.conversations) {
+        if (recordsProcessed >= maxRecords) {
+          shouldStop = true;
+          break;
+        }
+
         let canonical;
         try {
           canonical = toCanonicalFeedbackItem(
@@ -418,6 +453,10 @@ async function runIntercomSync(
         }
 
         recordsProcessed += 1;
+      }
+
+      if (shouldStop) {
+        break;
       }
 
       if (!page.nextCursor) {
@@ -495,7 +534,12 @@ async function runIntercomSync(
   }
 }
 
-export function parseIntercomBackfillInput(input: unknown): { from: Date; to: Date } {
+export function parseIntercomBackfillInput(input: unknown): {
+  from: Date;
+  to: Date;
+  maxRecords?: number;
+  maxPages?: number;
+} {
   return backfillInputSchema.parse(input);
 }
 
@@ -510,7 +554,9 @@ export async function runIntercomBackfillSync(
     "intercom_backfill",
     {
       from: input.from,
-      to: input.to
+      to: input.to,
+      maxRecords: input.maxRecords,
+      maxPages: input.maxPages
     },
     deps
   );
